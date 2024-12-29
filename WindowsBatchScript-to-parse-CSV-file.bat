@@ -95,3 +95,14 @@ for /F "tokens=1-30* delims=%delimiter2%" %%a in ("%%]") do (
 ）
 ）
 
+ 
+:: 設定原始字符串、關鍵字和替換字符串
+rem set "originalString=這是我的原始字串abc,其中包含關鍵字abc"
+rem set "keyword=abc"
+rem set "replacement=AAA"
+
+:: 進行替換
+rem set "newString=!originalString:%keyword%=%replacement%!"
+
+:: 輸出結果
+rem echo 新的字符串：%newString%
