@@ -64,6 +64,34 @@ for /f "tokens=1-29* delims=%delimiter2%" %%@ in ("!var4!") do (
     echo 29=%%\
     echo 30=%%]
     echo 31=%%^^
+for /F "tokens=1-30* delims=%delimiter2%" %%a in ("%%]") do (
+        echo A01=%%a
+        echo A02=%%b
+        echo A03=%%c
+        echo A04=%%d
+        echo A05=%%e
+        echo A06=%%f
+        echo A07=%%g
+        echo A08=%%h
+        echo A09=%%i
+        echo A10=%%j
+        echo A11=%%k
+        echo A12=%%l
+        echo A13=%%m
+        echo A14=%%n
+        echo A15=%%o
+        echo A16=%%p
+        echo A17=%%q
+        echo A18=%%r
+        echo A19=%%s
+        echo A20=%%t
+        echo A21=%%u
+        echo A22=%%v
+        echo A23=%%w
+        echo A24=%%x
+        echo A25=%%y
+        echo A26=%%z
+）
 ）
 ）
 
