@@ -1,7 +1,6 @@
-rem 
 @echo off
 setlocal enabledelayedexpansion
-set work_disk=D:
+set work_disk=f:
 set work_dir=F:\LAB
 set checkmarx=F:\LAB\checkmarx_report.csv
 set "delimiter=,"
@@ -19,9 +18,6 @@ set "replacement=^ ^"
 !work_disk!
 cd !work_dir!
 
- 
- 
- 
 for /F "tokens=* delims=" %%a in ('powershell "import-csv %checkmarx%  |convertto-csv "') do (
 set var1=%%a
 echo source:[!var1!] 
@@ -30,9 +26,8 @@ set "var4=!var4:%keyword%=%replacement%!"
 set "var4=!var4:%keyword%=%replacement%!" 
 set "var4=!var4:%keyword2%=%replacement2%!" 
 echo b:[!var4!]  
-
 for /f "tokens=1-29* delims=%delimiter2%" %%@ in ("!var4!") do (
-   echo:
+    echo:
     echo  1=%%@
     echo  2=%%A
     echo  3=%%B
@@ -64,7 +59,7 @@ for /f "tokens=1-29* delims=%delimiter2%" %%@ in ("!var4!") do (
     echo 29=%%\
     echo 30=%%]
     echo 31=%%^^
-for /F "tokens=1-30* delims=%delimiter2%" %%a in ("%%]") do (
+	for /F "tokens=1-30* delims=%delimiter2%" %%a in ("%%]") do (
         echo A01=%%a
         echo A02=%%b
         echo A03=%%c
@@ -91,18 +86,18 @@ for /F "tokens=1-30* delims=%delimiter2%" %%a in ("%%]") do (
         echo A24=%%x
         echo A25=%%y
         echo A26=%%z
-ï¼‰
-ï¼‰
-ï¼‰
-
+	)
+)
+)
+  
  
-:: è¨­å®šåŸå§‹å­—ç¬¦ä¸²ã€é—œéµå­—å’Œæ›¿æ›å­—ç¬¦ä¸²
-rem set "originalString=é€™æ˜¯æˆ‘çš„åŸå§‹å­—ä¸²abc,å…¶ä¸­åŒ…å«é—œéµå­—abc"
+:: ³]©w­ì©l¦r²Å¦ê¡BÃöÁä¦r©M´À´«¦r²Å¦ê
+rem set "originalString=³o¬O§Úªº­ì©l¦r¦êabc,¨ä¤¤¥]§tÃöÁä¦rabc"
 rem set "keyword=abc"
 rem set "replacement=AAA"
 
-:: é€²è¡Œæ›¿æ›
+:: ¶i¦æ´À´«
 rem set "newString=!originalString:%keyword%=%replacement%!"
 
-:: è¼¸å‡ºçµæœ
-rem echo æ–°çš„å­—ç¬¦ä¸²ï¼š%newString%
+:: ¿é¥Xµ²ªG
+rem echo ·sªº¦r²Å¦ê¡G%newString%
