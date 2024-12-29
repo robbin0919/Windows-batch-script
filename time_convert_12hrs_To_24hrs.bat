@@ -11,9 +11,9 @@ goto :eof
 set "timeString=%~1"
 :: ©î¤À®É¶¡¦r²Å¦ê
 for /f "tokens=1-7 delims=%delimiter%" %%a in ("%timeString%") do (
-    set year=%%a
-    set month=%%b
-    set day=%%c
+    set month=%%a
+    set day=%%b
+    set year=%%c
     set hour=%%d
     set minute=%%e
     set second=%%f
