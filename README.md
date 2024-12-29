@@ -7,4 +7,7 @@
 
 | Lab                                                 | 備註       |         |
 | --------------------------------------------------- | ---------- | ------- |
-|HelloWorld                                           | 最基本LAB   | LAB     |
+|WindowsBatchScript-to-parse-CSV-file.bat             | 如何解析CSV檔內容   | LAB     |
+|time_convert_12hrs_To_24hrs.bat                      | 時間格式轉換(12hr to 24hr)   | LAB     |
+ 
+
