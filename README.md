@@ -10,4 +10,5 @@
 |WindowsBatchScript-to-parse-CSV-file.bat             | 如何解析CSV檔內容   | LAB     |
 |time_convert_12hrs_To_24hrs.bat                      | 時間格式轉換(12hr to 24hr)   | LAB     |
 |convert_month_abbreviation_to_number.bat             | 日期格式轉換(月份簡碼轉數字)  ||
+|Parsing_data_format01            | 解析文字檔轉換資料格式  ||
 
