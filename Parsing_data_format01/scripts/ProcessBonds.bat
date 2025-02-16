@@ -58,7 +58,8 @@ if not exist "%INPUT_FILE%" (
 )
 
 :: 修改 CSV 標題行，加入折價金額欄位
-echo 執行時間,執行者,債券代碼,債券名稱,參考報價日期,參考申購報價,票面利率,配息頻率,到期日,YTM/YTC,產業別,計價幣別,最低申購面額,風險等級,票息收入(%INVESTMENT_AMOUNT%美金),折價金額(%INVESTMENT_AMOUNT%美金) > "%OUTPUT_CSV%"
+set "HEADER=執行時間,執行者,債券代碼,債券名稱,參考報價日期,參考申購報價,票面利率,配息頻率,到期日,YTM/YTC,產業別,計價幣別,最低申購面額,風險等級,票息收入(%INVESTMENT_AMOUNT%美金),折價金額(%INVESTMENT_AMOUNT%美金),投資期間"
+echo !HEADER! > "%OUTPUT_CSV%"
 
 :: ========== 初始化變數 ==========
 set "current_bond="
@@ -109,9 +110,26 @@ for /f "usebackq delims=" %%a in ("%INPUT_FILE%") do (
                     set "discount_amount=%%i"
                 )
             )
+
+            :: 設定 PowerShell 命令
+            if defined quote_date if defined maturity_date (
+                set "PS_CMD="
+                set "PS_CMD=!PS_CMD! $start = [datetime]::ParseExact('!quote_date!', 'yyyy/MM/dd', $null);"
+                set "PS_CMD=!PS_CMD! $end = [datetime]::ParseExact('!maturity_date!', 'yyyy/MM/dd', $null);"
+                set "PS_CMD=!PS_CMD! $years = [math]::Round(($end - $start).Days / 365, 1);"
+                set "PS_CMD=!PS_CMD! $periods = [math]::Round($years * 2, 0);"
+                set "PS_CMD=!PS_CMD! Write-Host ($years.ToString() + '年 (' + $periods.ToString() + '期)')"
+
+                :: 執行 PowerShell 命令
+                for /f "delims=" %%i in ('powershell -Command "!PS_CMD!"') do (
+                    set "investment_period=%%i"
+                )
+            ) else (
+                set "investment_period=N/A"
+            )
             
             :: 輸出資料，加入票息收入和折價金額欄位
-            echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level!,!annual_income!,!discount_amount! >> "%OUTPUT_CSV%"
+            echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level!,!annual_income!,!discount_amount!,!investment_period! >> "%OUTPUT_CSV%"
             set /a "record_count+=1"
             echo [%UTC_TIME%] 處理債券: !bond_code! >> "%LOG_FILE%"
         )
@@ -155,9 +173,26 @@ for /f "usebackq delims=" %%a in ("%INPUT_FILE%") do (
                         set "discount_amount=%%i"
                     )
                 )
+
+                :: 設定 PowerShell 命令
+                if defined quote_date if defined maturity_date (
+                    set "PS_CMD="
+                    set "PS_CMD=!PS_CMD! $start = [datetime]::ParseExact('!quote_date!', 'yyyy/MM/dd', $null);"
+                    set "PS_CMD=!PS_CMD! $end = [datetime]::ParseExact('!maturity_date!', 'yyyy/MM/dd', $null);"
+                    set "PS_CMD=!PS_CMD! $years = [math]::Round(($end - $start).Days / 365, 1);"
+                    set "PS_CMD=!PS_CMD! $periods = [math]::Round($years * 2, 0);"
+                    set "PS_CMD=!PS_CMD! Write-Host ($years.ToString() + '年 (' + $periods.ToString() + '期)')"
+
+                    :: 執行 PowerShell 命令
+                    for /f "delims=" %%i in ('powershell -Command "!PS_CMD!"') do (
+                        set "investment_period=%%i"
+                    )
+                ) else (
+                    set "investment_period=N/A"
+                )
                 
                 :: 輸出資料，加入票息收入和折價金額欄位
-                echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level!,!annual_income!,!discount_amount! >> "%OUTPUT_CSV%"
+                echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level!,!annual_income!,!discount_amount!,!investment_period! >> "%OUTPUT_CSV%"
                 set /a "record_count+=1"
                 
                 :: 記錄處理的債券
@@ -197,16 +232,20 @@ for /f "usebackq delims=" %%a in ("%INPUT_FILE%") do (
                 set "next_is_coupon_rate="
             ) else if "!line!"=="配息頻率" (
                 set "next_is_payment_freq=1"
+                set "payment_freq="
             ) else if defined next_is_payment_freq (
                 if "!payment_freq!"=="" (
                     set "payment_freq=!line!"
-                    :: 檢查是否為季配
+                    :: 檢查是否為月配，如果是則直接結束
+                    if "!line!"=="月配" (
+                        set "next_is_payment_freq="
+                    )
+                    :: 檢查是否為季配，如果是則直接結束
                     if "!line!"=="季配" (
                         set "next_is_payment_freq="
-                    ) else (
-                        set "next_is_payment_freq=1"
                     )
                 ) else (
+                    :: 如果有第二行，則加入括號
                     set "payment_freq=!payment_freq! (!line!)"
                     set "next_is_payment_freq="
                 )
@@ -284,9 +323,26 @@ if defined bond_code (
             set "discount_amount=%%i"
         )
     )
+
+    :: 設定 PowerShell 命令
+    if defined quote_date if defined maturity_date (
+        set "PS_CMD="
+        set "PS_CMD=!PS_CMD! $start = [datetime]::ParseExact('!quote_date!', 'yyyy/MM/dd', $null);"
+        set "PS_CMD=!PS_CMD! $end = [datetime]::ParseExact('!maturity_date!', 'yyyy/MM/dd', $null);"
+        set "PS_CMD=!PS_CMD! $years = [math]::Round(($end - $start).Days / 365, 1);"
+        set "PS_CMD=!PS_CMD! $periods = [math]::Round($years * 2, 0);"
+        set "PS_CMD=!PS_CMD! Write-Host ($years.ToString() + '年 (' + $periods.ToString() + '期)')"
+
+        :: 執行 PowerShell 命令
+        for /f "delims=" %%i in ('powershell -Command "!PS_CMD!"') do (
+            set "investment_period=%%i"
+        )
+    ) else (
+        set "investment_period=N/A"
+    )
     
     :: 輸出資料，加入票息收入和折價金額欄位
-    echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level!,!annual_income!,!discount_amount! >> "%OUTPUT_CSV%"
+    echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level!,!annual_income!,!discount_amount!,!investment_period! >> "%OUTPUT_CSV%"
     set /a "record_count+=1"
     echo [%UTC_TIME%] 處理債券: !bond_code! >> "%LOG_FILE%"
 )
