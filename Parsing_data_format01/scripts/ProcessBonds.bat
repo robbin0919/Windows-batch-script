@@ -3,6 +3,9 @@ chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
 :: ========== 初始化設定 ==========
+:: 設定投資金額（可調整）
+set "INVESTMENT_AMOUNT=10000"
+
 :: 設定時間和使用者
 for /f %%a in ('wmic os get LocalDateTime /value ^| find "="') do set "%%a"
 set "UTC_TIME=%LocalDateTime:~0,4%-%LocalDateTime:~4,2%-%LocalDateTime:~6,2% %LocalDateTime:~8,2%:%LocalDateTime:~10,2%:%LocalDateTime:~12,2%"
@@ -54,8 +57,8 @@ if not exist "%INPUT_FILE%" (
     goto :error
 )
 
-:: 修改 CSV 標題行，加入票息收入欄位
-echo 執行時間,執行者,債券代碼,債券名稱,參考報價日期,參考申購報價,票面利率,配息頻率,到期日,YTM/YTC,產業別,計價幣別,最低申購面額,風險等級,票息收入 > "%OUTPUT_CSV%"
+:: 修改 CSV 標題行，加入折價金額欄位
+echo 執行時間,執行者,債券代碼,債券名稱,參考報價日期,參考申購報價,票面利率,配息頻率,到期日,YTM/YTC,產業別,計價幣別,最低申購面額,風險等級,票息收入(%INVESTMENT_AMOUNT%美金),折價金額(%INVESTMENT_AMOUNT%美金) > "%OUTPUT_CSV%"
 
 :: ========== 初始化變數 ==========
 set "current_bond="
@@ -88,21 +91,27 @@ for /f "usebackq delims=" %%a in ("%INPUT_FILE%") do (
     if !errorlevel! equ 0 (
         :: 如果已有債券代碼，先處理前一筆資料
         if defined bond_code (
-            :: 計算票息收入
+            :: 計算票息收入和折價金額
             set "annual_income="
-            if defined min_purchase if defined coupon_rate (
-                :: 移除逗號和百分比符號
-                set "clean_amount=!min_purchase:,=!"
+            set "discount_amount="
+            if defined min_purchase if defined coupon_rate if defined purchase_price (
+                :: 移除百分比符號和逗號
                 set "clean_rate=!coupon_rate:%%=!"
+                set "clean_price=!purchase_price:%%=!"
 
-                :: 使用 PowerShell 計算，四捨五入到小數點第二位
-                for /f %%i in ('powershell -command "$rate = [double]'!clean_rate!'; $income = 10000 * ($rate/100); [math]::Round($income, 2)"') do (
+                :: 計算票息收入
+                for /f %%i in ('powershell -Command "$rate=[double]'!clean_rate!'; $income=%INVESTMENT_AMOUNT%*($rate/100); Write-Host $([math]::Round($income,2))"') do (
                     set "annual_income=%%i"
+                )
+
+                :: 計算折價金額
+                for /f %%i in ('powershell -Command "$price=[double]'!clean_price!'; $discount=%INVESTMENT_AMOUNT%*(100-$price)/100; Write-Host $([math]::Round($discount,2))"') do (
+                    set "discount_amount=%%i"
                 )
             )
             
-            :: 輸出資料，加入票息收入欄位
-            echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level!,!annual_income! >> "%OUTPUT_CSV%"
+            :: 輸出資料，加入票息收入和折價金額欄位
+            echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level!,!annual_income!,!discount_amount! >> "%OUTPUT_CSV%"
             set /a "record_count+=1"
             echo [%UTC_TIME%] 處理債券: !bond_code! >> "%LOG_FILE%"
         )
@@ -128,21 +137,27 @@ for /f "usebackq delims=" %%a in ("%INPUT_FILE%") do (
         :: 跳過空行，開始新的債券資料
         if "!line!"=="" (
             if defined bond_code (
-                :: 計算票息收入
+                :: 計算票息收入和折價金額
                 set "annual_income="
-                if defined min_purchase if defined coupon_rate (
-                    :: 移除逗號和百分比符號
-                    set "clean_amount=!min_purchase:,=!"
+                set "discount_amount="
+                if defined min_purchase if defined coupon_rate if defined purchase_price (
+                    :: 移除百分比符號和逗號
                     set "clean_rate=!coupon_rate:%%=!"
+                    set "clean_price=!purchase_price:%%=!"
 
-                    :: 使用 PowerShell 計算，四捨五入到小數點第二位
-                    for /f %%i in ('powershell -command "$rate = [double]'!clean_rate!'; $income = 10000 * ($rate/100); [math]::Round($income, 2)"') do (
+                    :: 計算票息收入
+                    for /f %%i in ('powershell -Command "$rate=[double]'!clean_rate!'; $income=%INVESTMENT_AMOUNT%*($rate/100); Write-Host $([math]::Round($income,2))"') do (
                         set "annual_income=%%i"
+                    )
+
+                    :: 計算折價金額
+                    for /f %%i in ('powershell -Command "$price=[double]'!clean_price!'; $discount=%INVESTMENT_AMOUNT%*(100-$price)/100; Write-Host $([math]::Round($discount,2))"') do (
+                        set "discount_amount=%%i"
                     )
                 )
                 
-                :: 輸出資料，加入票息收入欄位
-                echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level!,!annual_income! >> "%OUTPUT_CSV%"
+                :: 輸出資料，加入票息收入和折價金額欄位
+                echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level!,!annual_income!,!discount_amount! >> "%OUTPUT_CSV%"
                 set /a "record_count+=1"
                 
                 :: 記錄處理的債券
@@ -251,21 +266,27 @@ for /f "usebackq delims=" %%a in ("%INPUT_FILE%") do (
 )
 :: 處理最後一筆債券資料
 if defined bond_code (
-    :: 計算票息收入
+    :: 計算票息收入和折價金額
     set "annual_income="
-    if defined min_purchase if defined coupon_rate (
-        :: 移除逗號和百分比符號
-        set "clean_amount=!min_purchase:,=!"
+    set "discount_amount="
+    if defined min_purchase if defined coupon_rate if defined purchase_price (
+        :: 移除百分比符號和逗號
         set "clean_rate=!coupon_rate:%%=!"
+        set "clean_price=!purchase_price:%%=!"
 
-        :: 使用 PowerShell 計算，四捨五入到小數點第二位
-        for /f %%i in ('powershell -command "$rate = [double]'!clean_rate!'; $income = 10000 * ($rate/100); [math]::Round($income, 2)"') do (
+        :: 計算票息收入
+        for /f %%i in ('powershell -Command "$rate=[double]'!clean_rate!'; $income=%INVESTMENT_AMOUNT%*($rate/100); Write-Host $([math]::Round($income,2))"') do (
             set "annual_income=%%i"
+        )
+
+        :: 計算折價金額
+        for /f %%i in ('powershell -Command "$price=[double]'!clean_price!'; $discount=%INVESTMENT_AMOUNT%*(100-$price)/100; Write-Host $([math]::Round($discount,2))"') do (
+            set "discount_amount=%%i"
         )
     )
     
-    :: 輸出資料，加入票息收入欄位
-    echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level!,!annual_income! >> "%OUTPUT_CSV%"
+    :: 輸出資料，加入票息收入和折價金額欄位
+    echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level!,!annual_income!,!discount_amount! >> "%OUTPUT_CSV%"
     set /a "record_count+=1"
     echo [%UTC_TIME%] 處理債券: !bond_code! >> "%LOG_FILE%"
 )
