@@ -94,9 +94,11 @@ for /f "usebackq delims=" %%a in ("%INPUT_FILE%") do (
                 :: 移除逗號和百分比符號
                 set "clean_amount=!min_purchase:,=!"
                 set "clean_rate=!coupon_rate:%%=!"
-                
-                :: 計算年化票息收入
-                set /a "annual_income=clean_amount * clean_rate / 100"
+
+                :: 使用 PowerShell 計算，四捨五入到小數點第二位
+                for /f %%i in ('powershell -command "$rate = [double]'!clean_rate!'; $income = 10000 * ($rate/100); [math]::Round($income, 2)"') do (
+                    set "annual_income=%%i"
+                )
             )
             
             :: 輸出資料，加入票息收入欄位
@@ -132,9 +134,11 @@ for /f "usebackq delims=" %%a in ("%INPUT_FILE%") do (
                     :: 移除逗號和百分比符號
                     set "clean_amount=!min_purchase:,=!"
                     set "clean_rate=!coupon_rate:%%=!"
-                    
-                    :: 計算年化票息收入
-                    set /a "annual_income=clean_amount * clean_rate / 100"
+
+                    :: 使用 PowerShell 計算，四捨五入到小數點第二位
+                    for /f %%i in ('powershell -command "$rate = [double]'!clean_rate!'; $income = 10000 * ($rate/100); [math]::Round($income, 2)"') do (
+                        set "annual_income=%%i"
+                    )
                 )
                 
                 :: 輸出資料，加入票息收入欄位
@@ -253,9 +257,11 @@ if defined bond_code (
         :: 移除逗號和百分比符號
         set "clean_amount=!min_purchase:,=!"
         set "clean_rate=!coupon_rate:%%=!"
-        
-        :: 計算年化票息收入
-        set /a "annual_income=clean_amount * clean_rate / 100"
+
+        :: 使用 PowerShell 計算，四捨五入到小數點第二位
+        for /f %%i in ('powershell -command "$rate = [double]'!clean_rate!'; $income = 10000 * ($rate/100); [math]::Round($income, 2)"') do (
+            set "annual_income=%%i"
+        )
     )
     
     :: 輸出資料，加入票息收入欄位
