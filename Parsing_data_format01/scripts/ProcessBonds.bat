@@ -1,4 +1,4 @@
-@echo off
+ @echo off
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
@@ -12,7 +12,7 @@ if "%UTC_TIME%"=="" set "UTC_TIME=2025-02-15 07:38:05"
 if "%USER_LOGIN%"=="" set "USER_LOGIN=robbin0919"
 
 :: 設定檔案路徑
-set "INPUT_FILE=input_bonds.txt"
+set "INPUT_FILE=..\data\input_bonds.txt"
 set "OUTPUT_DIR=output"
 set "OUTPUT_CSV=%OUTPUT_DIR%\bonds_%UTC_TIME:~0,10%_%UTC_TIME:~11,2%%UTC_TIME:~14,2%.csv"
 set "LOG_FILE=%OUTPUT_DIR%\process_%UTC_TIME:~0,10%.log"
@@ -45,9 +45,7 @@ if not exist "%INPUT_FILE%" (
 )
 
 :: 建立 CSV 標題
-(
-    echo 執行時間,執行者,債券代碼,債券名稱,標籤,參考報價日期,參考申購報價,票面利率,配息頻率,到期日,YTM/YTC,產業別,計價幣別,最低申購面額,風險等級
-) > "%OUTPUT_CSV%"
+    echo 執行時間,執行者,債券代碼,債券名稱,標籤,參考報價日期,參考申購報價,票面利率,配息頻率,到期日,YTM/YTC,產業別,計價幣別,最低申購面額,風險等級  > "%OUTPUT_CSV%"
 
 :: ========== 初始化變數 ==========
 set "current_bond="
@@ -72,39 +70,62 @@ echo [%UTC_TIME%] 開始讀取檔案 %INPUT_FILE% >> "%LOG_FILE%"
 
 for /f "usebackq delims=" %%a in ("%INPUT_FILE%") do (
     set "line=%%a"
+    :: 先處理 & 符號，將其轉換為「和」
+    set "line=!line:&=和!"
     
-    :: 跳過空行，開始新的債券資料
-    if "!line!"=="" (
+    :: 解析債券代碼和名稱（第一行）
+    echo !line! | findstr /r "^WMBB[0-9]" >nul
+    if !errorlevel! equ 0 (
+        :: 如果已有債券代碼，先處理前一筆資料
         if defined bond_code (
             :: 輸出已收集的債券資料到 CSV
-            echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!tags!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,!min_purchase!,!risk_level! >> "%OUTPUT_CSV%"
+            echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!tags!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level! >> "%OUTPUT_CSV%"
             set /a "record_count+=1"
-            
-            :: 記錄處理的債券
             echo [%UTC_TIME%] 處理債券: !bond_code! >> "%LOG_FILE%"
-            
-            :: 重設變數
-            set "bond_code="
-            set "bond_name="
-            set "tags="
-            set "quote_date="
-            set "purchase_price="
-            set "coupon_rate="
-            set "payment_freq="
-            set "maturity_date="
-            set "ytm_ytc="
-            set "industry="
-            set "currency="
-            set "min_purchase="
-            set "risk_level="
         )
+        
+        :: 開始新的債券資料
+        for /f "tokens=1,*" %%b in ("!line!") do (
+            set "bond_code=%%b"
+            set "bond_name=%%c"
+        )
+        :: 重設其他變數
+        set "tags="
+        set "quote_date="
+        set "purchase_price="
+        set "coupon_rate="
+        set "payment_freq="
+        set "maturity_date="
+        set "ytm_ytc="
+        set "industry="
+        set "currency="
+        set "min_purchase="
+        set "risk_level="
     ) else (
-        :: 解析債券代碼和名稱（第一行）
-        echo !line! | findstr /r "^WMBB[0-9]" >nul
-        if !errorlevel! equ 0 (
-            for /f "tokens=1,*" %%b in ("!line!") do (
-                set "bond_code=%%b"
-                set "bond_name=%%c"
+        :: 跳過空行，開始新的債券資料
+        if "!line!"=="" (
+            if defined bond_code (
+                :: 輸出已收集的債券資料到 CSV
+                echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!tags!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level! >> "%OUTPUT_CSV%"
+                set /a "record_count+=1"
+                
+                :: 記錄處理的債券
+                echo [%UTC_TIME%] 處理債券: !bond_code! >> "%LOG_FILE%"
+                
+                :: 重設變數
+                set "bond_code="
+                set "bond_name="
+                set "tags="
+                set "quote_date="
+                set "purchase_price="
+                set "coupon_rate="
+                set "payment_freq="
+                set "maturity_date="
+                set "ytm_ytc="
+                set "industry="
+                set "currency="
+                set "min_purchase="
+                set "risk_level="
             )
         ) else (
             :: 解析標籤（第二行）
@@ -112,44 +133,89 @@ for /f "usebackq delims=" %%a in ("%INPUT_FILE%") do (
                 set "tags=!line!"
             ) else (
                 :: 解析其他欄位
-                if "!line!"=="參考報價日期" set "next_is_quote_date=1" & goto :continue
-                if defined next_is_quote_date set "quote_date=!line!" & set "next_is_quote_date=" & goto :continue
-                
-                if "!line!"=="參考申購報價" set "next_is_purchase_price=1" & goto :continue
-                if defined next_is_purchase_price set "purchase_price=!line!" & set "next_is_purchase_price=" & goto :continue
-                
-                if "!line!"=="票面利率" set "next_is_coupon_rate=1" & goto :continue
-                if defined next_is_coupon_rate set "coupon_rate=!line!" & set "next_is_coupon_rate=" & goto :continue
-                
-                if "!line!"=="配息頻率" set "next_is_payment_freq=1" & goto :continue
-                if defined next_is_payment_freq set "payment_freq=!line!" & set "next_is_payment_freq=" & goto :continue
-                
-                if "!line!"=="到期日" set "next_is_maturity_date=1" & goto :continue
-                if defined next_is_maturity_date set "maturity_date=!line!" & set "next_is_maturity_date=" & goto :continue
-                
-                if "!line!"=="YTM/YTC" set "next_is_ytm_ytc=1" & goto :continue
-                if defined next_is_ytm_ytc set "ytm_ytc=!line!" & set "next_is_ytm_ytc=" & goto :continue
-                
-                if "!line!"=="產業別" set "next_is_industry=1" & goto :continue
-                if defined next_is_industry set "industry=!line!" & set "next_is_industry=" & goto :continue
-                
-                if "!line!"=="計價幣別" set "next_is_currency=1" & goto :continue
-                if defined next_is_currency set "currency=!line!" & set "next_is_currency=" & goto :continue
-                
-                if "!line!"=="最低申購面額" set "next_is_min_purchase=1" & goto :continue
-                if defined next_is_min_purchase set "min_purchase=!line!" & set "next_is_min_purchase=" & goto :continue
-                
-                if "!line!"=="風險等級" set "next_is_risk_level=1" & goto :continue
-                if defined next_is_risk_level set "risk_level=!line!" & set "next_is_risk_level=" & goto :continue
+                if "!line!"=="參考報價日期" (
+                    set "next_is_quote_date=1"
+                ) else if defined next_is_quote_date (
+                    set "quote_date=!line!"
+                    set "next_is_quote_date="
+                ) else if "!line!"=="參考申購報價" (
+                    set "next_is_purchase_price=1"
+                ) else if defined next_is_purchase_price (
+                    set "purchase_price=!line!"
+                    set "next_is_purchase_price="
+                ) else if "!line!"=="票面利率" (
+                    set "next_is_coupon_rate=1"
+                ) else if defined next_is_coupon_rate (
+                    set "coupon_rate=!line!"
+                    set "next_is_coupon_rate="
+                ) else if "!line!"=="配息頻率" (
+                    set "next_is_payment_freq=1"
+                ) else if defined next_is_payment_freq (
+                    if "!payment_freq!"=="" (
+                        set "payment_freq=!line!"
+                        set "next_is_payment_freq=1"
+                    ) else (
+                        set "payment_freq=!payment_freq! (!line!)"
+                        set "next_is_payment_freq="
+                    )
+                ) else if "!line!"=="到期日" (
+                    set "next_is_maturity_date=1"
+                ) else if defined next_is_maturity_date (
+                    set "maturity_date=!line!"
+                    set "next_is_maturity_date="
+                ) else if "!line!"=="YTM/YTC" (
+                    set "next_is_ytm_ytc=1"
+                ) else if defined next_is_ytm_ytc (
+                    set "ytm_ytc=!line!"
+                    set "next_is_ytm_ytc="
+                ) else if "!line!"=="產業別" (
+                    set "next_is_industry=1"
+                ) else if defined next_is_industry (
+                    set "industry=!line!"
+                    set "next_is_industry="
+                ) else if "!line!"=="計價幣別" (
+                    set "next_is_currency=1"
+                ) else if defined next_is_currency (
+                    set "currency=!line!"
+                    set "next_is_currency="
+                ) else if "!line!"=="最低申購面額" (
+                    set "next_is_min_purchase=1"
+                ) else if defined next_is_min_purchase (
+                    set "min_purchase=!line!"
+                    set "next_is_min_purchase="
+                ) else if "!line!"=="風險等級" (
+                    set "next_is_risk_level=1"
+                ) else if defined next_is_risk_level (
+                    set "risk_level=!line!"
+                    set "next_is_risk_level="
+                ) else if "!line!"=="產業別" (
+                    set "next_is_industry=1"
+                ) else if defined next_is_industry (
+                    set "industry=!line!"
+                    set "next_is_industry="
+                ) else if "!line!"=="計價幣別" (
+                    set "next_is_currency=1"
+                ) else if defined next_is_currency (
+                    set "currency=!line!"
+                    set "next_is_currency="
+                ) else if "!line!"=="最低申購面額" (
+                    set "next_is_min_purchase=1"
+                ) else if defined next_is_min_purchase (
+                    set "min_purchase=!line!"
+                    set "next_is_min_purchase="
+                ) else if "!line!"=="風險等級" (
+                    set "next_is_risk_level=1"
+                ) else if defined next_is_risk_level (
+                    set "risk_level=!line!"
+                    set "next_is_risk_level="
+                )
             )
         )
     )
-    :continue
 )
-
 :: 處理最後一筆債券資料
 if defined bond_code (
-    echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!tags!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,!min_purchase!,!risk_level! >> "%OUTPUT_CSV%"
+    echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!tags!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level! >> "%OUTPUT_CSV%"
     set /a "record_count+=1"
     echo [%UTC_TIME%] 處理債券: !bond_code! >> "%LOG_FILE%"
 )
@@ -164,14 +230,15 @@ if exist "%TEMP_CSV%" del "%TEMP_CSV%"
 for /f "usebackq delims=" %%a in ("%OUTPUT_CSV%") do (
     set "line=%%a"
     :: 保留標題行的百分比符號
-    echo %%a | findstr /C:"執行時間" >nul
-    if !errorlevel! equ 0 (
+    set "line=%%a"
+    if "!line:~0,14!"=="執行時間,執行者,債券代碼" (
         echo !line! >> "%TEMP_CSV%"
     ) else (
-        set "line=!line:%%=!"
-        set "line=!line:,%%=,!"
+        set "line=!line:%%=%%!"
+        set "line=!line:,%%=%%!"
         echo !line! >> "%TEMP_CSV%"
     )
+ 
 )
 
 move /y "%TEMP_CSV%" "%OUTPUT_CSV%" >nul
@@ -180,7 +247,7 @@ move /y "%TEMP_CSV%" "%OUTPUT_CSV%" >nul
 echo.
 echo 處理完成！
 echo ----------------------------------------
-echo 處理結果摘要：
+echo 處理結果摘要： 
 echo 輸入檔案：%INPUT_FILE%
 echo 輸出檔案：%OUTPUT_CSV%
 echo 處理記錄：%LOG_FILE%
