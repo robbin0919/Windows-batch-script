@@ -111,13 +111,24 @@ for /f "usebackq delims=" %%a in ("%INPUT_FILE%") do (
                 )
             )
 
-            :: 設定 PowerShell 命令
+            :: 設定 PowerShell 命令計算投資期間
             if defined quote_date if defined maturity_date (
+                :: 根據配息頻率設定乘數
+                set "freq_multiplier=2"
+                if "!payment_freq!"=="月配" (
+                    set "freq_multiplier=12"
+                ) else if "!payment_freq!"=="季配" (
+                    set "freq_multiplier=4"
+                ) else if "!payment_freq:~0,3!"=="半年" (
+                    set "freq_multiplier=2"
+                )
+
+                :: 設定 PowerShell 命令
                 set "PS_CMD="
                 set "PS_CMD=!PS_CMD! $start = [datetime]::ParseExact('!quote_date!', 'yyyy/MM/dd', $null);"
                 set "PS_CMD=!PS_CMD! $end = [datetime]::ParseExact('!maturity_date!', 'yyyy/MM/dd', $null);"
                 set "PS_CMD=!PS_CMD! $years = [math]::Round(($end - $start).Days / 365, 1);"
-                set "PS_CMD=!PS_CMD! $periods = [math]::Round($years * 2, 0);"
+                set "PS_CMD=!PS_CMD! $periods = [math]::Round($years * !freq_multiplier!, 0);"
                 set "PS_CMD=!PS_CMD! Write-Host ($years.ToString() + '年 (' + $periods.ToString() + '期)')"
 
                 :: 執行 PowerShell 命令
@@ -174,13 +185,24 @@ for /f "usebackq delims=" %%a in ("%INPUT_FILE%") do (
                     )
                 )
 
-                :: 設定 PowerShell 命令
+                :: 設定 PowerShell 命令計算投資期間
                 if defined quote_date if defined maturity_date (
+                    :: 根據配息頻率設定乘數
+                    set "freq_multiplier=2"
+                    if "!payment_freq!"=="月配" (
+                        set "freq_multiplier=12"
+                    ) else if "!payment_freq!"=="季配" (
+                        set "freq_multiplier=4"
+                    ) else if "!payment_freq:~0,3!"=="半年" (
+                        set "freq_multiplier=2"
+                    )
+
+                    :: 設定 PowerShell 命令
                     set "PS_CMD="
                     set "PS_CMD=!PS_CMD! $start = [datetime]::ParseExact('!quote_date!', 'yyyy/MM/dd', $null);"
                     set "PS_CMD=!PS_CMD! $end = [datetime]::ParseExact('!maturity_date!', 'yyyy/MM/dd', $null);"
                     set "PS_CMD=!PS_CMD! $years = [math]::Round(($end - $start).Days / 365, 1);"
-                    set "PS_CMD=!PS_CMD! $periods = [math]::Round($years * 2, 0);"
+                    set "PS_CMD=!PS_CMD! $periods = [math]::Round($years * !freq_multiplier!, 0);"
                     set "PS_CMD=!PS_CMD! Write-Host ($years.ToString() + '年 (' + $periods.ToString() + '期)')"
 
                     :: 執行 PowerShell 命令
@@ -324,13 +346,24 @@ if defined bond_code (
         )
     )
 
-    :: 設定 PowerShell 命令
+    :: 設定 PowerShell 命令計算投資期間
     if defined quote_date if defined maturity_date (
+        :: 根據配息頻率設定乘數
+        set "freq_multiplier=2"
+        if "!payment_freq!"=="月配" (
+            set "freq_multiplier=12"
+        ) else if "!payment_freq!"=="季配" (
+            set "freq_multiplier=4"
+        ) else if "!payment_freq:~0,3!"=="半年" (
+            set "freq_multiplier=2"
+        )
+
+        :: 設定 PowerShell 命令
         set "PS_CMD="
         set "PS_CMD=!PS_CMD! $start = [datetime]::ParseExact('!quote_date!', 'yyyy/MM/dd', $null);"
         set "PS_CMD=!PS_CMD! $end = [datetime]::ParseExact('!maturity_date!', 'yyyy/MM/dd', $null);"
         set "PS_CMD=!PS_CMD! $years = [math]::Round(($end - $start).Days / 365, 1);"
-        set "PS_CMD=!PS_CMD! $periods = [math]::Round($years * 2, 0);"
+        set "PS_CMD=!PS_CMD! $periods = [math]::Round($years * !freq_multiplier!, 0);"
         set "PS_CMD=!PS_CMD! Write-Host ($years.ToString() + '年 (' + $periods.ToString() + '期)')"
 
         :: 執行 PowerShell 命令
