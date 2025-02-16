@@ -1,28 +1,38 @@
- @echo off
+@echo off
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
 :: ========== 初始化設定 ==========
 :: 設定時間和使用者
-set "UTC_TIME=%1"
-set "USER_LOGIN=%2"
+for /f %%a in ('wmic os get LocalDateTime /value ^| find "="') do set "%%a"
+set "UTC_TIME=%LocalDateTime:~0,4%-%LocalDateTime:~4,2%-%LocalDateTime:~6,2% %LocalDateTime:~8,2%:%LocalDateTime:~10,2%:%LocalDateTime:~12,2%"
 
-:: 如果沒有提供參數，使用預設值
-if "%UTC_TIME%"=="" set "UTC_TIME=2025-02-15 07:38:05"
-if "%USER_LOGIN%"=="" set "USER_LOGIN=robbin0919"
+if "%~1" neq "" set "UTC_TIME=%~1"
+if "%~2" neq "" (
+    set "USER_LOGIN=%~2"
+) else (
+    set "USER_LOGIN=robbin0919"
+)
+
+:: 設定基礎路徑（改用絕對路徑）
+pushd "%~dp0.."
+set "BASE_DIR=%CD%"
+popd
+set "DATA_DIR=%BASE_DIR%\data"
+set "OUTPUT_DIR=%BASE_DIR%\output"
 
 :: 設定檔案路徑
-set "INPUT_FILE=..\data\input_bonds.txt"
-set "OUTPUT_DIR=output"
-set "OUTPUT_CSV=%OUTPUT_DIR%\bonds_%UTC_TIME:~0,10%_%UTC_TIME:~11,2%%UTC_TIME:~14,2%.csv"
+set "INPUT_FILE=%DATA_DIR%\input_bonds.txt"
+set "FILE_NAME=bonds_%UTC_TIME:~0,10%_%UTC_TIME:~11,2%%UTC_TIME:~14,2%.csv"
+:: 移除檔名中的冒號
+set "FILE_NAME=!FILE_NAME::=_!"
+:: 設定完整輸出路徑
+set "OUTPUT_CSV=%OUTPUT_DIR%\%FILE_NAME%"
 set "LOG_FILE=%OUTPUT_DIR%\process_%UTC_TIME:~0,10%.log"
 set "ERROR_LOG=%OUTPUT_DIR%\error_%UTC_TIME:~0,10%.log"
 
 :: 建立輸出目錄
 if not exist "%OUTPUT_DIR%" mkdir "%OUTPUT_DIR%"
-
-:: 移除檔名中的冒號
-set "OUTPUT_CSV=!OUTPUT_CSV::=!"
 
 :: ========== 開始執行 ==========
 echo ====================================
@@ -38,14 +48,14 @@ echo [%UTC_TIME%] 開始執行債券資料處理 >> "%LOG_FILE%"
 echo [%UTC_TIME%] 執行使用者: %USER_LOGIN% >> "%LOG_FILE%"
 
 :: 檢查輸入檔案
-if not exist "%INPUT_FILE%" (
+if not exist "%INPUT_FILE%" ( 
     echo 錯誤：找不到輸入檔案 %INPUT_FILE%
     echo [%UTC_TIME%] 錯誤：找不到輸入檔案 %INPUT_FILE% >> "%ERROR_LOG%"
     goto :error
 )
 
-:: 建立 CSV 標題
-    echo 執行時間,執行者,債券代碼,債券名稱,標籤,參考報價日期,參考申購報價,票面利率,配息頻率,到期日,YTM/YTC,產業別,計價幣別,最低申購面額,風險等級  > "%OUTPUT_CSV%"
+:: 先修改 CSV 標題行，移除標籤欄位
+echo 執行時間,執行者,債券代碼,債券名稱,參考報價日期,參考申購報價,票面利率,配息頻率,到期日,YTM/YTC,產業別,計價幣別,最低申購面額,風險等級 > "%OUTPUT_CSV%"
 
 :: ========== 初始化變數 ==========
 set "current_bond="
@@ -79,7 +89,7 @@ for /f "usebackq delims=" %%a in ("%INPUT_FILE%") do (
         :: 如果已有債券代碼，先處理前一筆資料
         if defined bond_code (
             :: 輸出已收集的債券資料到 CSV
-            echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!tags!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level! >> "%OUTPUT_CSV%"
+            echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level! >> "%OUTPUT_CSV%"
             set /a "record_count+=1"
             echo [%UTC_TIME%] 處理債券: !bond_code! >> "%LOG_FILE%"
         )
@@ -106,7 +116,7 @@ for /f "usebackq delims=" %%a in ("%INPUT_FILE%") do (
         if "!line!"=="" (
             if defined bond_code (
                 :: 輸出已收集的債券資料到 CSV
-                echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!tags!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level! >> "%OUTPUT_CSV%"
+                echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level! >> "%OUTPUT_CSV%"
                 set /a "record_count+=1"
                 
                 :: 記錄處理的債券
@@ -128,94 +138,89 @@ for /f "usebackq delims=" %%a in ("%INPUT_FILE%") do (
                 set "risk_level="
             )
         ) else (
-            :: 解析標籤（第二行）
-            if not defined tags (
-                set "tags=!line!"
-            ) else (
-                :: 解析其他欄位
-                if "!line!"=="參考報價日期" (
-                    set "next_is_quote_date=1"
-                ) else if defined next_is_quote_date (
-                    set "quote_date=!line!"
-                    set "next_is_quote_date="
-                ) else if "!line!"=="參考申購報價" (
-                    set "next_is_purchase_price=1"
-                ) else if defined next_is_purchase_price (
-                    set "purchase_price=!line!"
-                    set "next_is_purchase_price="
-                ) else if "!line!"=="票面利率" (
-                    set "next_is_coupon_rate=1"
-                ) else if defined next_is_coupon_rate (
-                    set "coupon_rate=!line!"
-                    set "next_is_coupon_rate="
-                ) else if "!line!"=="配息頻率" (
+            :: 解析其他欄位（移除標籤處理）
+            if "!line!"=="參考報價日期" (
+                set "next_is_quote_date=1"
+            ) else if defined next_is_quote_date (
+                set "quote_date=!line!"
+                set "next_is_quote_date="
+            ) else if "!line!"=="參考申購報價" (
+                set "next_is_purchase_price=1"
+            ) else if defined next_is_purchase_price (
+                set "purchase_price=!line!"
+                set "next_is_purchase_price="
+            ) else if "!line!"=="票面利率" (
+                set "next_is_coupon_rate=1"
+            ) else if defined next_is_coupon_rate (
+                set "coupon_rate=!line!"
+                set "next_is_coupon_rate="
+            ) else if "!line!"=="配息頻率" (
+                set "next_is_payment_freq=1"
+            ) else if defined next_is_payment_freq (
+                if "!payment_freq!"=="" (
+                    set "payment_freq=!line!"
                     set "next_is_payment_freq=1"
-                ) else if defined next_is_payment_freq (
-                    if "!payment_freq!"=="" (
-                        set "payment_freq=!line!"
-                        set "next_is_payment_freq=1"
-                    ) else (
-                        set "payment_freq=!payment_freq! (!line!)"
-                        set "next_is_payment_freq="
-                    )
-                ) else if "!line!"=="到期日" (
-                    set "next_is_maturity_date=1"
-                ) else if defined next_is_maturity_date (
-                    set "maturity_date=!line!"
-                    set "next_is_maturity_date="
-                ) else if "!line!"=="YTM/YTC" (
-                    set "next_is_ytm_ytc=1"
-                ) else if defined next_is_ytm_ytc (
-                    set "ytm_ytc=!line!"
-                    set "next_is_ytm_ytc="
-                ) else if "!line!"=="產業別" (
-                    set "next_is_industry=1"
-                ) else if defined next_is_industry (
-                    set "industry=!line!"
-                    set "next_is_industry="
-                ) else if "!line!"=="計價幣別" (
-                    set "next_is_currency=1"
-                ) else if defined next_is_currency (
-                    set "currency=!line!"
-                    set "next_is_currency="
-                ) else if "!line!"=="最低申購面額" (
-                    set "next_is_min_purchase=1"
-                ) else if defined next_is_min_purchase (
-                    set "min_purchase=!line!"
-                    set "next_is_min_purchase="
-                ) else if "!line!"=="風險等級" (
-                    set "next_is_risk_level=1"
-                ) else if defined next_is_risk_level (
-                    set "risk_level=!line!"
-                    set "next_is_risk_level="
-                ) else if "!line!"=="產業別" (
-                    set "next_is_industry=1"
-                ) else if defined next_is_industry (
-                    set "industry=!line!"
-                    set "next_is_industry="
-                ) else if "!line!"=="計價幣別" (
-                    set "next_is_currency=1"
-                ) else if defined next_is_currency (
-                    set "currency=!line!"
-                    set "next_is_currency="
-                ) else if "!line!"=="最低申購面額" (
-                    set "next_is_min_purchase=1"
-                ) else if defined next_is_min_purchase (
-                    set "min_purchase=!line!"
-                    set "next_is_min_purchase="
-                ) else if "!line!"=="風險等級" (
-                    set "next_is_risk_level=1"
-                ) else if defined next_is_risk_level (
-                    set "risk_level=!line!"
-                    set "next_is_risk_level="
+                ) else (
+                    set "payment_freq=!payment_freq! (!line!)"
+                    set "next_is_payment_freq="
                 )
+            ) else if "!line!"=="到期日" (
+                set "next_is_maturity_date=1"
+            ) else if defined next_is_maturity_date (
+                set "maturity_date=!line!"
+                set "next_is_maturity_date="
+            ) else if "!line!"=="YTM/YTC" (
+                set "next_is_ytm_ytc=1"
+            ) else if defined next_is_ytm_ytc (
+                set "ytm_ytc=!line!"
+                set "next_is_ytm_ytc="
+            ) else if "!line!"=="產業別" (
+                set "next_is_industry=1"
+            ) else if defined next_is_industry (
+                set "industry=!line!"
+                set "next_is_industry="
+            ) else if "!line!"=="計價幣別" (
+                set "next_is_currency=1"
+            ) else if defined next_is_currency (
+                set "currency=!line!"
+                set "next_is_currency="
+            ) else if "!line!"=="最低申購面額" (
+                set "next_is_min_purchase=1"
+            ) else if defined next_is_min_purchase (
+                set "min_purchase=!line!"
+                set "next_is_min_purchase="
+            ) else if "!line!"=="風險等級" (
+                set "next_is_risk_level=1"
+            ) else if defined next_is_risk_level (
+                set "risk_level=!line!"
+                set "next_is_risk_level="
+            ) else if "!line!"=="產業別" (
+                set "next_is_industry=1"
+            ) else if defined next_is_industry (
+                set "industry=!line!"
+                set "next_is_industry="
+            ) else if "!line!"=="計價幣別" (
+                set "next_is_currency=1"
+            ) else if defined next_is_currency (
+                set "currency=!line!"
+                set "next_is_currency="
+            ) else if "!line!"=="最低申購面額" (
+                set "next_is_min_purchase=1"
+            ) else if defined next_is_min_purchase (
+                set "min_purchase=!line!"
+                set "next_is_min_purchase="
+            ) else if "!line!"=="風險等級" (
+                set "next_is_risk_level=1"
+            ) else if defined next_is_risk_level (
+                set "risk_level=!line!"
+                set "next_is_risk_level="
             )
         )
     )
 )
 :: 處理最後一筆債券資料
 if defined bond_code (
-    echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!tags!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level! >> "%OUTPUT_CSV%"
+    echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level! >> "%OUTPUT_CSV%"
     set /a "record_count+=1"
     echo [%UTC_TIME%] 處理債券: !bond_code! >> "%LOG_FILE%"
 )
