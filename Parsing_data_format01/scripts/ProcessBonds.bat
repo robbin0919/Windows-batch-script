@@ -54,8 +54,8 @@ if not exist "%INPUT_FILE%" (
     goto :error
 )
 
-:: 先修改 CSV 標題行，移除標籤欄位
-echo 執行時間,執行者,債券代碼,債券名稱,參考報價日期,參考申購報價,票面利率,配息頻率,到期日,YTM/YTC,產業別,計價幣別,最低申購面額,風險等級 > "%OUTPUT_CSV%"
+:: 修改 CSV 標題行，加入票息收入欄位
+echo 執行時間,執行者,債券代碼,債券名稱,參考報價日期,參考申購報價,票面利率,配息頻率,到期日,YTM/YTC,產業別,計價幣別,最低申購面額,風險等級,票息收入 > "%OUTPUT_CSV%"
 
 :: ========== 初始化變數 ==========
 set "current_bond="
@@ -88,8 +88,19 @@ for /f "usebackq delims=" %%a in ("%INPUT_FILE%") do (
     if !errorlevel! equ 0 (
         :: 如果已有債券代碼，先處理前一筆資料
         if defined bond_code (
-            :: 輸出已收集的債券資料到 CSV
-            echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level! >> "%OUTPUT_CSV%"
+            :: 計算票息收入
+            set "annual_income="
+            if defined min_purchase if defined coupon_rate (
+                :: 移除逗號和百分比符號
+                set "clean_amount=!min_purchase:,=!"
+                set "clean_rate=!coupon_rate:%%=!"
+                
+                :: 計算年化票息收入
+                set /a "annual_income=clean_amount * clean_rate / 100"
+            )
+            
+            :: 輸出資料，加入票息收入欄位
+            echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level!,!annual_income! >> "%OUTPUT_CSV%"
             set /a "record_count+=1"
             echo [%UTC_TIME%] 處理債券: !bond_code! >> "%LOG_FILE%"
         )
@@ -115,8 +126,19 @@ for /f "usebackq delims=" %%a in ("%INPUT_FILE%") do (
         :: 跳過空行，開始新的債券資料
         if "!line!"=="" (
             if defined bond_code (
-                :: 輸出已收集的債券資料到 CSV
-                echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level! >> "%OUTPUT_CSV%"
+                :: 計算票息收入
+                set "annual_income="
+                if defined min_purchase if defined coupon_rate (
+                    :: 移除逗號和百分比符號
+                    set "clean_amount=!min_purchase:,=!"
+                    set "clean_rate=!coupon_rate:%%=!"
+                    
+                    :: 計算年化票息收入
+                    set /a "annual_income=clean_amount * clean_rate / 100"
+                )
+                
+                :: 輸出資料，加入票息收入欄位
+                echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level!,!annual_income! >> "%OUTPUT_CSV%"
                 set /a "record_count+=1"
                 
                 :: 記錄處理的債券
@@ -159,7 +181,12 @@ for /f "usebackq delims=" %%a in ("%INPUT_FILE%") do (
             ) else if defined next_is_payment_freq (
                 if "!payment_freq!"=="" (
                     set "payment_freq=!line!"
-                    set "next_is_payment_freq=1"
+                    :: 檢查是否為季配
+                    if "!line!"=="季配" (
+                        set "next_is_payment_freq="
+                    ) else (
+                        set "next_is_payment_freq=1"
+                    )
                 ) else (
                     set "payment_freq=!payment_freq! (!line!)"
                     set "next_is_payment_freq="
@@ -220,7 +247,19 @@ for /f "usebackq delims=" %%a in ("%INPUT_FILE%") do (
 )
 :: 處理最後一筆債券資料
 if defined bond_code (
-    echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level! >> "%OUTPUT_CSV%"
+    :: 計算票息收入
+    set "annual_income="
+    if defined min_purchase if defined coupon_rate (
+        :: 移除逗號和百分比符號
+        set "clean_amount=!min_purchase:,=!"
+        set "clean_rate=!coupon_rate:%%=!"
+        
+        :: 計算年化票息收入
+        set /a "annual_income=clean_amount * clean_rate / 100"
+    )
+    
+    :: 輸出資料，加入票息收入欄位
+    echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level!,!annual_income! >> "%OUTPUT_CSV%"
     set /a "record_count+=1"
     echo [%UTC_TIME%] 處理債券: !bond_code! >> "%LOG_FILE%"
 )
