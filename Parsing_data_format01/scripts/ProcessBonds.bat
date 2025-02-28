@@ -272,6 +272,10 @@ for /f "usebackq delims=" %%a in ("%INPUT_FILE%") do (
                     if "!line!"=="季配" (
                         set "next_is_payment_freq="
                     )
+                    :: 檢查是否為年配，如果是則直接結束
+                    if "!line!"=="年配" (
+                        set "next_is_payment_freq="
+                    )
                 ) else (
                     :: 如果有第二行，則加入括號
                     set "payment_freq=!payment_freq! (!line!)"
