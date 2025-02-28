@@ -57,8 +57,8 @@ if not exist "%INPUT_FILE%" (
     goto :error
 )
 
-:: 修改 CSV 標題行，加入折價金額欄位
-set "HEADER=執行時間,執行者,債券代碼,債券名稱,參考報價日期,參考申購報價,票面利率,配息頻率,到期日,YTM/YTC,產業別,計價幣別,最低申購面額,風險等級,票息收入(%INVESTMENT_AMOUNT%美金),折價金額(%INVESTMENT_AMOUNT%美金),投資期間"
+:: 修改 CSV 標題行，明確標示單位
+set "HEADER=執行時間,執行者,債券代碼,債券名稱,參考報價日期,參考申購報價,票面利率,配息頻率,到期日,YTM/YTC,產業別,計價幣別,最低申購面額,風險等級,票息收入(%INVESTMENT_AMOUNT%美金),折價金額(%INVESTMENT_AMOUNT%美金),投資年期(年),配息期數(期),開放申購"
 echo !HEADER! > "%OUTPUT_CSV%"
 
 :: ========== 初始化變數 ==========
@@ -77,6 +77,7 @@ set "currency="
 set "min_purchase="
 set "risk_level="
 set "record_count=0"
+set "is_available="
 
 :: ========== 讀取並處理輸入檔案 ==========
 echo 開始處理輸入檔案...
@@ -123,24 +124,26 @@ for /f "usebackq delims=" %%a in ("%INPUT_FILE%") do (
                     set "freq_multiplier=2"
                 )
 
-                :: 設定 PowerShell 命令
+                :: 設定 PowerShell 命令輸出純數字
                 set "PS_CMD="
                 set "PS_CMD=!PS_CMD! $start = [datetime]::ParseExact('!quote_date!', 'yyyy/MM/dd', $null);"
                 set "PS_CMD=!PS_CMD! $end = [datetime]::ParseExact('!maturity_date!', 'yyyy/MM/dd', $null);"
                 set "PS_CMD=!PS_CMD! $years = [math]::Round(($end - $start).Days / 365, 1);"
                 set "PS_CMD=!PS_CMD! $periods = [math]::Round($years * !freq_multiplier!, 0);"
-                set "PS_CMD=!PS_CMD! Write-Host ($years.ToString() + '年 (' + $periods.ToString() + '期)')"
+                set "PS_CMD=!PS_CMD! Write-Host ($years.ToString() + '|' + $periods.ToString())"
 
-                :: 執行 PowerShell 命令
-                for /f "delims=" %%i in ('powershell -Command "!PS_CMD!"') do (
-                    set "investment_period=%%i"
+                :: 執行 PowerShell 命令並設定純數字結果
+                for /f "tokens=1,2 delims=|" %%i in ('powershell -Command "!PS_CMD!"') do (
+                    set "investment_years=%%i"
+                    set "investment_periods=%%j"
                 )
             ) else (
-                set "investment_period=N/A"
+                set "investment_years=N/A"
+                set "investment_periods=N/A"
             )
             
-            :: 輸出資料，加入票息收入和折價金額欄位
-            echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level!,!annual_income!,!discount_amount!,!investment_period! >> "%OUTPUT_CSV%"
+            :: 輸出資料，分開顯示年期和期數
+            echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level!,!annual_income!,!discount_amount!,!investment_years!,!investment_periods!,!is_available! >> "%OUTPUT_CSV%"
             set /a "record_count+=1"
             echo [%UTC_TIME%] 處理債券: !bond_code! >> "%LOG_FILE%"
         )
@@ -162,13 +165,14 @@ for /f "usebackq delims=" %%a in ("%INPUT_FILE%") do (
         set "currency="
         set "min_purchase="
         set "risk_level="
+        set "is_available=N"   :: 這裡有設定預設值為N
     ) else (
         :: 跳過空行，開始新的債券資料
         if "!line!"=="" (
             if defined bond_code (
                 :: 計算票息收入和折價金額
                 set "annual_income="
-                set "discount_amount="
+                set "discount_amount=" 
                 if defined min_purchase if defined coupon_rate if defined purchase_price (
                     :: 移除百分比符號和逗號
                     set "clean_rate=!coupon_rate:%%=!"
@@ -197,24 +201,26 @@ for /f "usebackq delims=" %%a in ("%INPUT_FILE%") do (
                         set "freq_multiplier=2"
                     )
 
-                    :: 設定 PowerShell 命令
+                     :: 設定 PowerShell 命令輸出純數字
                     set "PS_CMD="
                     set "PS_CMD=!PS_CMD! $start = [datetime]::ParseExact('!quote_date!', 'yyyy/MM/dd', $null);"
                     set "PS_CMD=!PS_CMD! $end = [datetime]::ParseExact('!maturity_date!', 'yyyy/MM/dd', $null);"
                     set "PS_CMD=!PS_CMD! $years = [math]::Round(($end - $start).Days / 365, 1);"
                     set "PS_CMD=!PS_CMD! $periods = [math]::Round($years * !freq_multiplier!, 0);"
-                    set "PS_CMD=!PS_CMD! Write-Host ($years.ToString() + '年 (' + $periods.ToString() + '期)')"
+                    set "PS_CMD=!PS_CMD! Write-Host ($years.ToString() + '|' + $periods.ToString())"
 
-                    :: 執行 PowerShell 命令
-                    for /f "delims=" %%i in ('powershell -Command "!PS_CMD!"') do (
-                        set "investment_period=%%i"
+                    :: 執行 PowerShell 命令並設定純數字結果
+                    for /f "tokens=1,2 delims=|" %%i in ('powershell -Command "!PS_CMD!"') do (
+                        set "investment_years=%%i"
+                        set "investment_periods=%%j"
                     )
                 ) else (
-                    set "investment_period=N/A"
+                    set "investment_years=N/A"
+                    set "investment_periods=N/A"
                 )
                 
-                :: 輸出資料，加入票息收入和折價金額欄位
-                echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level!,!annual_income!,!discount_amount!,!investment_period! >> "%OUTPUT_CSV%"
+                :: 輸出資料，分開顯示年期和期數
+                echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level!,!annual_income!,!discount_amount!,!investment_years!,!investment_periods!,!is_available! >> "%OUTPUT_CSV%"
                 set /a "record_count+=1"
                 
                 :: 記錄處理的債券
@@ -266,6 +272,10 @@ for /f "usebackq delims=" %%a in ("%INPUT_FILE%") do (
                     if "!line!"=="季配" (
                         set "next_is_payment_freq="
                     )
+                    :: 檢查是否為年配，如果是則直接結束
+                    if "!line!"=="年配" (
+                        set "next_is_payment_freq="
+                    )
                 ) else (
                     :: 如果有第二行，則加入括號
                     set "payment_freq=!payment_freq! (!line!)"
@@ -301,26 +311,13 @@ for /f "usebackq delims=" %%a in ("%INPUT_FILE%") do (
             ) else if defined next_is_risk_level (
                 set "risk_level=!line!"
                 set "next_is_risk_level="
-            ) else if "!line!"=="產業別" (
-                set "next_is_industry=1"
-            ) else if defined next_is_industry (
-                set "industry=!line!"
-                set "next_is_industry="
-            ) else if "!line!"=="計價幣別" (
-                set "next_is_currency=1"
-            ) else if defined next_is_currency (
-                set "currency=!line!"
-                set "next_is_currency="
-            ) else if "!line!"=="最低申購面額" (
-                set "next_is_min_purchase=1"
-            ) else if defined next_is_min_purchase (
-                set "min_purchase=!line!"
-                set "next_is_min_purchase="
-            ) else if "!line!"=="風險等級" (
-                set "next_is_risk_level=1"
-            ) else if defined next_is_risk_level (
-                set "risk_level=!line!"
-                set "next_is_risk_level="
+            ) else (
+                :: 使用 PowerShell 檢查是否包含"我要申購"
+                for /f %%i in ('powershell -Command "$line = '!line!'; if($line -match '我要申購') { Write-Host 'Y' } else { Write-Host 'N' }"') do (
+                    if "%%i"=="Y" (
+                        set "is_available=Y"
+                    )
+                )
             )
         )
     )
@@ -358,24 +355,34 @@ if defined bond_code (
             set "freq_multiplier=2"
         )
 
-        :: 設定 PowerShell 命令
+        :: 設定 PowerShell 命令輸出純數字
         set "PS_CMD="
         set "PS_CMD=!PS_CMD! $start = [datetime]::ParseExact('!quote_date!', 'yyyy/MM/dd', $null);"
         set "PS_CMD=!PS_CMD! $end = [datetime]::ParseExact('!maturity_date!', 'yyyy/MM/dd', $null);"
         set "PS_CMD=!PS_CMD! $years = [math]::Round(($end - $start).Days / 365, 1);"
         set "PS_CMD=!PS_CMD! $periods = [math]::Round($years * !freq_multiplier!, 0);"
-        set "PS_CMD=!PS_CMD! Write-Host ($years.ToString() + '年 (' + $periods.ToString() + '期)')"
+        set "PS_CMD=!PS_CMD! Write-Host ($years.ToString() + '|' + $periods.ToString())"
 
-        :: 執行 PowerShell 命令
-        for /f "delims=" %%i in ('powershell -Command "!PS_CMD!"') do (
-            set "investment_period=%%i"
+        :: 執行 PowerShell 命令並設定純數字結果
+        for /f "tokens=1,2 delims=|" %%i in ('powershell -Command "!PS_CMD!"') do (
+            set "investment_years=%%i"
+            set "investment_periods=%%j"
         )
     ) else (
-        set "investment_period=N/A"
+        set "investment_years=N/A"
+        set "investment_periods=N/A"
+    )
+
+    :: 在輸出最後一筆資料前，加入檢查是否有"我要申購"的邏輯
+    :: 使用 PowerShell 檢查累積的行內容是否包含"我要申購"
+    for /f %%i in ('powershell -Command "$line = '!line!'; if($line -match '我要申購') { Write-Host 'Y' } else { Write-Host 'N' }"') do (
+        if "%%i"=="Y" (
+            set "is_available=Y"
+        )
     )
     
-    :: 輸出資料，加入票息收入和折價金額欄位
-    echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level!,!annual_income!,!discount_amount!,!investment_period! >> "%OUTPUT_CSV%"
+    :: 輸出資料，分開顯示年期和期數
+    echo %UTC_TIME%,%USER_LOGIN%,!bond_code!,!bond_name!,!quote_date!,!purchase_price!,!coupon_rate!,!payment_freq!,!maturity_date!,!ytm_ytc!,!industry!,!currency!,"!min_purchase!",!risk_level!,!annual_income!,!discount_amount!,!investment_years!,!investment_periods!,!is_available! >> "%OUTPUT_CSV%"
     set /a "record_count+=1"
     echo [%UTC_TIME%] 處理債券: !bond_code! >> "%LOG_FILE%"
 )
